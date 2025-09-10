@@ -3,7 +3,7 @@
 , fetchurl
 , janet
 , makeWrapper
-, version ? "0.0.11"
+, version ? "0.0.0"
 }:
 
 stdenvNoCC.mkDerivation rec {
