@@ -1,0 +1,74 @@
+name: Update janet-lsp
+
+on:
+  schedule:
+    # Run daily at 07:00 UTC
+    - cron: '0 7 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+
+      - name: Check latest release and update
+        id: update
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          latest_tag=$(curl -fsSL "https://api.github.com/repos/CFiggers/janet-lsp/releases/latest" | jq -r .tag_name)
+          if [[ -z "${latest_tag}" || "${latest_tag}" == null ]]; then
+            echo "No latest release tag found; exiting." >&2
+            echo "update_needed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          latest_version=${latest_tag#v}
+          current_version=$(sed -n 's/.*version \? "\([^"]*\)".*/\1/p' default.nix | head -n1)
+
+          echo "Latest: ${latest_version} | Current: ${current_version}"
+
+          if [[ -z "${current_version}" || "${latest_version}" == "${current_version}" ]]; then
+            echo "No update needed." >&2
+            echo "update_needed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          asset_url="https://github.com/CFiggers/janet-lsp/releases/download/v${latest_version}/janet-lsp.jimage"
+          tmp_file=$(mktemp)
+          echo "Downloading asset from ${asset_url} ..."
+          curl -fsSL "${asset_url}" -o "${tmp_file}"
+
+          echo "Computing Nix SRI hash ..."
+          sri=$(nix hash file "${tmp_file}" --type sha256)
+          rm -f "${tmp_file}"
+
+          echo "Updating default.nix ..."
+          sed -i -E "s/version \? \\"[^\"]+\\"/version ? \"${latest_version}\"/" default.nix
+          sed -i -E "s#sha256 = \\\"[^\\\"]+\\\";#sha256 = \"${sri}\";#" default.nix
+
+          echo "new_version=${latest_version}" >> "$GITHUB_OUTPUT"
+          echo "new_sri=${sri}" >> "$GITHUB_OUTPUT"
+          echo "update_needed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push changes
+        if: steps.update.outputs.update_needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add default.nix
+          git commit -m "chore: bump janet-lsp to ${{ steps.update.outputs.new_version }}"
+          git push
