@@ -35,11 +35,13 @@ jobs:
           fi
 
           latest_version=${latest_tag#v}
-          current_version=$(sed -n 's/.*version \? "\([^"]*\)".*/\1/p' default.nix | head -n1)
+          # Extract current version from a pattern like: version ? "X.Y.Z"
+          current_version=$(sed -nE 's/.*version[[:space:]]*\?[[:space:]]*"([^\"]+)".*/\1/p' default.nix | head -n1)
 
           echo "Latest: ${latest_version} | Current: ${current_version}"
 
-          if [[ -z "${current_version}" || "${latest_version}" == "${current_version}" ]]; then
+          # Only skip when a current version exists AND matches latest
+          if [[ -n "${current_version}" && "${latest_version}" == "${current_version}" ]]; then
             echo "No update needed." >&2
             echo "update_needed=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -51,12 +53,12 @@ jobs:
           curl -fsSL "${asset_url}" -o "${tmp_file}"
 
           echo "Computing Nix SRI hash ..."
-          sri=$(nix hash file "${tmp_file}" --type sha256)
+          sri=$(nix hash file "${tmp_file}" --type sha256 | tr -d '\n')
           rm -f "${tmp_file}"
 
           echo "Updating default.nix ..."
-          sed -i -E "s/version \? \\"[^\"]+\\"/version ? \"${latest_version}\"/" default.nix
-          sed -i -E "s#sha256 = \\\"[^\\\"]+\\\";#sha256 = \"${sri}\";#" default.nix
+          sed -i -E 's/version[[:space:]]*\?[[:space:]]*"[^"]+"/version ? "'"${latest_version}"'"/' default.nix
+          sed -i -E 's#sha256 = "[^"]+";#sha256 = "'"${sri}"'";#' default.nix
 
           echo "new_version=${latest_version}" >> "$GITHUB_OUTPUT"
           echo "new_sri=${sri}" >> "$GITHUB_OUTPUT"
