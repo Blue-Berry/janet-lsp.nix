@@ -3,7 +3,7 @@
 , fetchurl
 , janet
 , makeWrapper
-, version ? "0.0.11"
+, version ? "0.0.12"
 }:
 
 stdenvNoCC.mkDerivation rec {
@@ -12,7 +12,7 @@ stdenvNoCC.mkDerivation rec {
 
   src = fetchurl {
     url = "https://github.com/CFiggers/janet-lsp/releases/download/v${version}/janet-lsp.jimage";
-    sha256 = "sha256-UZXeWBMP9ars972VIVqnuFxge4RU+4l9nniQCAQldpc=";
+    sha256 = "sha256-uzA0ybmUi12OcSfU6VY/xOHhJN0rJqfcnxHbRsH8HG0=";
   };
 
   nativeBuildInputs = [ makeWrapper ];
